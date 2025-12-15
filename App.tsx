@@ -13,12 +13,16 @@ import {
   Leaf,
   Wifi,
   WifiOff,
-  AlertTriangle
+  AlertTriangle,
+  Smartphone,
+  CreditCard,
+  Plus
 } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, XAxis, Tooltip } from 'recharts';
 import { AppTab, Merchant } from './types';
 import { PaymentModal } from './components/PaymentModal';
 import { AiTravelGuide } from './components/AiTravelGuide';
+import { OnboardingFlow } from './components/OnboardingFlow';
 
 // Mock Data
 const RECENT_TRANSACTIONS = [
@@ -76,6 +80,7 @@ const NEARBY_MERCHANTS: Merchant[] = [
 ];
 
 export default function App() {
+  const [hasOnboarded, setHasOnboarded] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>(AppTab.HOME);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [balance, setBalance] = useState(842.50);
@@ -85,6 +90,10 @@ export default function App() {
     // Only deduct balance if online, otherwise queue it (logic simplified for demo)
     setBalance(prev => prev - amount);
   };
+
+  if (!hasOnboarded) {
+    return <OnboardingFlow onComplete={() => setHasOnboarded(true)} />;
+  }
 
   const renderHome = () => (
     <div className="pb-24 animate-fade-in">
@@ -254,20 +263,43 @@ export default function App() {
          </div>
        </div>
 
-       <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="bg-safari-50 p-4 rounded-2xl border border-safari-100">
-             <h4 className="font-bold text-safari-900 mb-1">Local Rail</h4>
-             <p className="text-xs text-safari-700">Connected to M-Pesa & Airtel</p>
-             <div className="mt-3 flex items-center gap-2">
-                <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                <span className="text-xs font-medium">Active</span>
-             </div>
-          </div>
-           <div className="bg-gray-50 p-4 rounded-2xl border border-gray-100">
-             <h4 className="font-bold text-gray-900 mb-1">Backup Card</h4>
-             <p className="text-xs text-gray-500">Visa •••• 4242</p>
-             <div className="mt-3 text-xs font-semibold text-gray-900 underline">Manage</div>
-          </div>
+       {/* Multi-Rail Connections Section */}
+       <div className="mb-6">
+         <h3 className="font-bold text-lg mb-3">Connected Rails</h3>
+         <div className="space-y-3">
+            {/* Connected Rail 1: M-Pesa */}
+            <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+               <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-700">
+                     <Smartphone className="w-5 h-5" />
+                  </div>
+                  <div>
+                     <h4 className="font-bold text-gray-900 text-sm">M-Pesa (Kenya)</h4>
+                     <p className="text-xs text-gray-500">Connected • +254 7... 901</p>
+                  </div>
+               </div>
+               <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-lg">Active</span>
+            </div>
+
+             {/* Connected Rail 2: Visa */}
+            <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-gray-100 shadow-sm">
+               <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700">
+                     <CreditCard className="w-5 h-5" />
+                  </div>
+                  <div>
+                     <h4 className="font-bold text-gray-900 text-sm">Visa (Global)</h4>
+                     <p className="text-xs text-gray-500">Connected • •••• 4242</p>
+                  </div>
+               </div>
+               <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-lg">Active</span>
+            </div>
+            
+            {/* Add New Rail */}
+             <button className="w-full py-3 border-2 border-dashed border-gray-300 rounded-2xl flex items-center justify-center gap-2 text-gray-500 font-medium hover:border-safari-400 hover:text-safari-600 transition-colors">
+                <Plus className="w-4 h-4" /> Connect Airtel / Telebirr
+             </button>
+         </div>
        </div>
 
        <h3 className="font-bold text-lg mb-4">Travel Memories</h3>

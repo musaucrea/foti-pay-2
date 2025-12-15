@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShieldCheck, CheckCircle2, RefreshCw, Smartphone, CreditCard, ScanLine, Leaf, Info, WifiOff, CloudOff } from 'lucide-react';
+import { X, ShieldCheck, CheckCircle2, RefreshCw, Smartphone, CreditCard, ScanLine, Leaf, Info, WifiOff, CloudOff, Globe, Wallet as WalletIcon } from 'lucide-react';
 import { Merchant } from '../types';
 
 interface PaymentModalProps {
@@ -23,10 +23,19 @@ const MOCK_SCANNED_MERCHANT: Merchant = {
   culturalTip: "💡 Tip: 10% is customary here for good service."
 };
 
+const PAYMENT_RAILS = [
+  { id: 'mpesa', name: 'M-Pesa', type: 'LOCAL', color: 'bg-green-600', textColor: 'text-white', sub: 'Safaricom' },
+  { id: 'airtel', name: 'Airtel Money', type: 'LOCAL', color: 'bg-red-600', textColor: 'text-white', sub: 'Airtel' },
+  { id: 'telebirr', name: 'Telebirr', type: 'LOCAL', color: 'bg-blue-500', textColor: 'text-white', sub: 'Ethio Telecom' },
+  { id: 'card', name: 'Visa / MC', type: 'GLOBAL', color: 'bg-indigo-900', textColor: 'text-white', sub: ' via Stripe' },
+  { id: 'apple', name: 'Apple Pay', type: 'GLOBAL', color: 'bg-black', textColor: 'text-white', sub: 'Wallet' },
+];
+
 export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess, isOffline }) => {
   const [step, setStep] = useState<'SCAN' | 'AMOUNT' | 'PROCESSING' | 'SUCCESS'>('SCAN');
   const [amount, setAmount] = useState<string>('');
   const [roundUp, setRoundUp] = useState(false);
+  const [selectedRail, setSelectedRail] = useState<string>('mpesa');
   
   // FX Simulation
   const EXCHANGE_RATE = 129.50; // USD to KES
@@ -44,6 +53,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
       setStep('SCAN');
       setAmount('');
       setRoundUp(false);
+      setSelectedRail('mpesa');
     }
   }, [isOpen]);
 
@@ -58,7 +68,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
     setStep('PROCESSING');
     setTimeout(() => {
       setStep('SUCCESS');
-    }, 2000);
+    }, 2500);
   };
 
   const handleClose = () => {
@@ -66,6 +76,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
       onSuccess(totalPay, MOCK_SCANNED_MERCHANT);
     }
     onClose();
+  };
+
+  const getProcessingMessage = () => {
+    if (isOffline) return "Queuing securely for sync...";
+    switch(selectedRail) {
+      case 'mpesa': return "Pushing request to M-Pesa...";
+      case 'airtel': return " contacting Airtel Money...";
+      case 'telebirr': return "Connecting to Telebirr...";
+      case 'apple': return "Confirming with Face ID...";
+      default: return "Processing Card Transaction...";
+    }
   };
 
   if (!isOpen) return null;
@@ -112,7 +133,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
             </div>
           )}
 
-          {/* STEP 2: AMOUNT & TRANSPARENCY */}
+          {/* STEP 2: AMOUNT & DETAILS */}
           {step === 'AMOUNT' && (
             <div className="space-y-6 animate-fade-in pb-4">
               {/* Merchant Card */}
@@ -134,7 +155,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
                 </div>
               </div>
 
-              {/* Cultural Tip (Tourism Intelligence) */}
+              {/* Cultural Tip */}
               {MOCK_SCANNED_MERCHANT.culturalTip && (
                 <div className="flex gap-3 bg-blue-50 p-3 rounded-xl border border-blue-100">
                    <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />
@@ -158,7 +179,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
                 </div>
               </div>
 
-              {/* FX & Transparency Widget */}
+              {/* FX Widget */}
               <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className="bg-gray-50 px-4 py-2 border-b border-gray-100 flex justify-between items-center">
                     <span className="text-xs font-bold text-gray-500 uppercase">Payment Breakdown</span>
@@ -173,12 +194,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
                     <span className="text-gray-600 flex items-center gap-1">FX Rate <RefreshCw className="w-3 h-3 text-gray-400"/></span>
                     <span className="font-mono text-gray-700">1 USD = {EXCHANGE_RATE} KES</span>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">FoTI Platform Fee</span>
-                    <span className="text-green-600 font-medium">Free</span>
-                  </div>
                   
-                  {/* Round Up Feature */}
+                  {/* Round Up */}
                   {rawAmount > 0 && roundUpCents > 0 && (
                     <div className="pt-2 mt-2 border-t border-gray-100">
                       <label className="flex items-center justify-between cursor-pointer group">
@@ -198,26 +215,50 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
                 </div>
               </div>
 
-              {/* Payment Method Selector */}
-              <div className="grid grid-cols-2 gap-3">
-                 <button className="flex items-center justify-center gap-2 py-3 px-4 border border-gray-200 rounded-xl hover:bg-gray-50 bg-white">
-                    <CreditCard className="w-4 h-4 text-gray-600" />
-                    <span className="text-sm font-medium">Card</span>
-                 </button>
-                 <button className="flex items-center justify-center gap-2 py-3 px-4 border-2 border-safari-500 bg-safari-50 rounded-xl text-safari-900">
-                    <Smartphone className="w-4 h-4" />
-                    <span className="text-sm font-bold">Wallet / M-Pesa</span>
-                 </button>
+              {/* Multi-Rail Selection */}
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">Select Payment Rail</label>
+                <div className="grid grid-cols-1 gap-2">
+                  {PAYMENT_RAILS.map((rail) => (
+                    <button
+                      key={rail.id}
+                      onClick={() => setSelectedRail(rail.id)}
+                      className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
+                        selectedRail === rail.id 
+                          ? 'border-safari-500 bg-safari-50 shadow-sm' 
+                          : 'border-gray-100 bg-white hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${rail.color} ${rail.textColor}`}>
+                          {rail.name[0]}
+                        </div>
+                        <div className="text-left">
+                          <p className={`text-sm font-bold ${selectedRail === rail.id ? 'text-gray-900' : 'text-gray-700'}`}>{rail.name}</p>
+                          <p className="text-[10px] text-gray-500">{rail.sub}</p>
+                        </div>
+                      </div>
+                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedRail === rail.id ? 'border-safari-500 bg-safari-500' : 'border-gray-300'}`}>
+                         {selectedRail === rail.id && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-400 text-center mt-3">
+                   Powered by Flutterwave & Direct Integrations
+                </p>
               </div>
             </div>
           )}
 
           {/* STEP 3: PROCESSING */}
           {step === 'PROCESSING' && (
-            <div className="flex flex-col items-center justify-center h-full space-y-4">
+            <div className="flex flex-col items-center justify-center h-full space-y-4 text-center">
               <div className="w-16 h-16 border-4 border-safari-100 border-t-safari-500 rounded-full animate-spin"></div>
-              <p className="text-lg font-medium text-gray-700">{isOffline ? 'Queuing Transaction...' : 'Securing Payment...'}</p>
-              <p className="text-sm text-gray-400">Verifying with {MOCK_SCANNED_MERCHANT.name}</p>
+              <h3 className="text-lg font-bold text-gray-900">{getProcessingMessage()}</h3>
+              <p className="text-sm text-gray-500 max-w-[200px]">
+                {selectedRail === 'mpesa' ? 'Check your phone for the M-Pesa PIN prompt' : 'Securing transaction on the blockchain ledger'}
+              </p>
             </div>
           )}
 
@@ -236,6 +277,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
                 <div className="flex justify-between text-sm mb-2">
                   <span className="text-gray-500">Total Paid</span>
                   <span className="font-bold">${totalPay.toFixed(2)}</span>
+                </div>
+                 <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-500">Method</span>
+                  <span className="font-bold flex items-center gap-1">
+                    {PAYMENT_RAILS.find(r => r.id === selectedRail)?.name} 
+                    <span className="text-[10px] bg-gray-200 px-1 rounded text-gray-600">
+                      {isOffline ? 'OFFLINE' : 'LIVE'}
+                    </span>
+                  </span>
                 </div>
                  <div className="flex justify-between text-sm mb-2">
                   <span className="text-gray-500">Merchant Rec'd</span>
