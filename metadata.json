@@ -1,0 +1,8 @@
+{
+  "name": "FoTI Pay",
+  "description": "The smartest way to pay, explore, and protect your travel experience in Africa. Multi-rail payments, verified merchants, and AI-driven travel intelligence.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}
