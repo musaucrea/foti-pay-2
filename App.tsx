@@ -23,6 +23,7 @@ import { AppTab, Merchant } from './types';
 import { PaymentModal } from './components/PaymentModal';
 import { AiTravelGuide } from './components/AiTravelGuide';
 import { OnboardingFlow } from './components/OnboardingFlow';
+import { ExploreMap } from './components/ExploreMap';
 
 // Mock Data
 const RECENT_TRANSACTIONS = [
@@ -82,14 +83,35 @@ const NEARBY_MERCHANTS: Merchant[] = [
 export default function App() {
   const [hasOnboarded, setHasOnboarded] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>(AppTab.HOME);
+  
+  // Payment States
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [selectedPaymentMerchant, setSelectedPaymentMerchant] = useState<Merchant | null>(null);
+
+  // App States
   const [balance, setBalance] = useState(842.50);
-  const [isOffline, setIsOffline] = useState(false); // Simulate Offline Mode
+  const [isOffline, setIsOffline] = useState(false);
+  const [showFullMap, setShowFullMap] = useState(false);
 
   const handlePaymentSuccess = (amount: number, merchant: Merchant) => {
-    // Only deduct balance if online, otherwise queue it (logic simplified for demo)
     setBalance(prev => prev - amount);
+    // Reset selection after success
+    setSelectedPaymentMerchant(null);
   };
+
+  const handleOpenPayment = (merchant?: Merchant) => {
+    if (merchant) {
+      setSelectedPaymentMerchant(merchant);
+    } else {
+      setSelectedPaymentMerchant(null);
+    }
+    setIsPaymentOpen(true);
+  };
+
+  const handleClosePayment = () => {
+    setIsPaymentOpen(false);
+    setSelectedPaymentMerchant(null);
+  }
 
   if (!hasOnboarded) {
     return <OnboardingFlow onComplete={() => setHasOnboarded(true)} />;
@@ -157,7 +179,7 @@ export default function App() {
                 <button onClick={() => setActiveTab(AppTab.WALLET)} className="flex-1 bg-gray-800 hover:bg-gray-700 py-3 rounded-xl text-sm font-medium transition-colors flex items-center justify-center gap-2">
                    <Wallet className="w-4 h-4" /> Top Up
                 </button>
-                <button className="flex-1 bg-white text-gray-900 py-3 rounded-xl text-sm font-bold shadow-lg hover:bg-gray-100 transition-colors flex items-center justify-center gap-2" onClick={() => setIsPaymentOpen(true)}>
+                <button className="flex-1 bg-white text-gray-900 py-3 rounded-xl text-sm font-bold shadow-lg hover:bg-gray-100 transition-colors flex items-center justify-center gap-2" onClick={() => handleOpenPayment()}>
                    <ScanLine className="w-4 h-4" /> Pay Now
                 </button>
              </div>
@@ -169,12 +191,12 @@ export default function App() {
       <div className="px-6 py-6">
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-lg text-gray-900">Verified Nearby</h3>
-          <button className="text-safari-600 text-sm font-semibold hover:underline">See Map</button>
+          <button onClick={() => { setActiveTab(AppTab.EXPLORE); setShowFullMap(true); }} className="text-safari-600 text-sm font-semibold hover:underline">See Map</button>
         </div>
 
         <div className="space-y-4">
           {NEARBY_MERCHANTS.map((merchant) => (
-            <div key={merchant.id} className="flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer" onClick={() => setIsPaymentOpen(true)}>
+            <div key={merchant.id} className="flex items-center gap-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-100 hover:shadow-md transition-shadow cursor-pointer" onClick={() => handleOpenPayment()}>
                <img src={merchant.imageUrl} className="w-16 h-16 rounded-xl object-cover" alt={merchant.name} />
                <div className="flex-1">
                  <div className="flex justify-between items-start">
@@ -322,57 +344,76 @@ export default function App() {
     </div>
   );
 
-  const renderExplore = () => (
-    <div className="h-full relative bg-gray-100 flex flex-col items-center justify-center text-center px-6">
-       <MapIcon className="w-16 h-16 text-gray-300 mb-4" />
-       <h2 className="text-xl font-bold text-gray-900">Interactive Map</h2>
-       <p className="text-gray-500 text-sm mt-2">Discover merchant density, safety zones, and cultural hotspots.</p>
-       <button className="mt-6 px-6 py-3 bg-white text-gray-900 font-semibold rounded-full shadow-sm border border-gray-200">
-         Launch Full Map
-       </button>
-       <div className="absolute bottom-24 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full text-xs font-medium text-gray-600 border border-white/50 shadow-lg">
-          📍 12 Verified Merchants within 500m
-       </div>
-    </div>
-  );
+  const renderExplore = () => {
+    // If Full Map Mode is active, show the interactive map
+    if (showFullMap) {
+      return (
+        <ExploreMap 
+          onClose={() => setShowFullMap(false)}
+          onPayMerchant={(merchant) => handleOpenPayment(merchant)}
+        />
+      );
+    }
+
+    // Default Explore View
+    return (
+      <div className="h-full relative bg-gray-100 flex flex-col items-center justify-center text-center px-6">
+        <MapIcon className="w-16 h-16 text-gray-300 mb-4" />
+        <h2 className="text-xl font-bold text-gray-900">Interactive Map</h2>
+        <p className="text-gray-500 text-sm mt-2">Discover merchant density, safety zones, and cultural hotspots.</p>
+        <button 
+          onClick={() => setShowFullMap(true)}
+          className="mt-6 px-6 py-3 bg-white text-gray-900 font-semibold rounded-full shadow-sm border border-gray-200 hover:bg-gray-50 transition-colors"
+        >
+          Launch Full Map
+        </button>
+        <div className="absolute bottom-24 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full text-xs font-medium text-gray-600 border border-white/50 shadow-lg">
+            📍 12 Verified Merchants within 500m
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="flex flex-col h-[100dvh] max-w-md mx-auto bg-white shadow-2xl relative overflow-hidden sm:rounded-[3rem] sm:my-8 sm:h-[90vh] sm:border-[8px] sm:border-gray-900">
       
       {/* Dynamic Content */}
-      <main className="flex-1 overflow-y-auto no-scrollbar bg-gray-50">
+      <main className="flex-1 overflow-y-auto no-scrollbar bg-gray-50 relative">
         {activeTab === AppTab.HOME && renderHome()}
         {activeTab === AppTab.WALLET && renderWallet()}
         {activeTab === AppTab.EXPLORE && renderExplore()}
         {activeTab === AppTab.GUIDE && <AiTravelGuide />}
       </main>
 
-      {/* Sticky Bottom Navigation */}
-      <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-4 pb-8 sm:pb-6 z-40">
-        <div className="flex justify-between items-center">
-          <NavIcon icon={<Home />} label="Home" active={activeTab === AppTab.HOME} onClick={() => setActiveTab(AppTab.HOME)} />
-          <NavIcon icon={<MapIcon />} label="Explore" active={activeTab === AppTab.EXPLORE} onClick={() => setActiveTab(AppTab.EXPLORE)} />
-          
-          {/* Floating Pay Button (Central) */}
-          <div className="relative -top-8">
-            <button 
-              onClick={() => setIsPaymentOpen(true)}
-              className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center text-white shadow-lg shadow-gray-900/40 hover:scale-105 transition-transform border-4 border-gray-50"
-            >
-              <ScanLine className="w-7 h-7" />
-            </button>
-          </div>
+      {/* Sticky Bottom Navigation (Hidden when Full Map is active) */}
+      {!showFullMap && (
+        <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-6 py-4 pb-8 sm:pb-6 z-40">
+          <div className="flex justify-between items-center">
+            <NavIcon icon={<Home />} label="Home" active={activeTab === AppTab.HOME} onClick={() => setActiveTab(AppTab.HOME)} />
+            <NavIcon icon={<MapIcon />} label="Explore" active={activeTab === AppTab.EXPLORE} onClick={() => setActiveTab(AppTab.EXPLORE)} />
+            
+            {/* Floating Pay Button (Central) */}
+            <div className="relative -top-8">
+              <button 
+                onClick={() => handleOpenPayment()}
+                className="w-16 h-16 bg-gray-900 rounded-full flex items-center justify-center text-white shadow-lg shadow-gray-900/40 hover:scale-105 transition-transform border-4 border-gray-50"
+              >
+                <ScanLine className="w-7 h-7" />
+              </button>
+            </div>
 
-          <NavIcon icon={<Wallet />} label="Wallet" active={activeTab === AppTab.WALLET} onClick={() => setActiveTab(AppTab.WALLET)} />
-          <NavIcon icon={<Sparkles />} label="Guide" active={activeTab === AppTab.GUIDE} onClick={() => setActiveTab(AppTab.GUIDE)} />
+            <NavIcon icon={<Wallet />} label="Wallet" active={activeTab === AppTab.WALLET} onClick={() => setActiveTab(AppTab.WALLET)} />
+            <NavIcon icon={<Sparkles />} label="Guide" active={activeTab === AppTab.GUIDE} onClick={() => setActiveTab(AppTab.GUIDE)} />
+          </div>
         </div>
-      </div>
+      )}
 
       <PaymentModal 
         isOpen={isPaymentOpen} 
-        onClose={() => setIsPaymentOpen(false)} 
+        onClose={handleClosePayment} 
         onSuccess={handlePaymentSuccess}
         isOffline={isOffline}
+        initialMerchant={selectedPaymentMerchant}
       />
     </div>
   );

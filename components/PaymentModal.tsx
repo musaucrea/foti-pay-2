@@ -7,9 +7,10 @@ interface PaymentModalProps {
   onClose: () => void;
   onSuccess: (amount: number, merchant: Merchant) => void;
   isOffline: boolean;
+  initialMerchant?: Merchant | null; // New prop for direct payments
 }
 
-// Mock Merchant Data for the "Scan" result
+// Mock Merchant Data for the "Scan" result (Fallback)
 const MOCK_SCANNED_MERCHANT: Merchant = {
   id: 'm-123',
   name: "Mama Oliech's Fish Kitchen",
@@ -31,11 +32,14 @@ const PAYMENT_RAILS = [
   { id: 'apple', name: 'Apple Pay', type: 'GLOBAL', color: 'bg-black', textColor: 'text-white', sub: 'Wallet' },
 ];
 
-export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess, isOffline }) => {
+export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess, isOffline, initialMerchant }) => {
   const [step, setStep] = useState<'SCAN' | 'AMOUNT' | 'PROCESSING' | 'SUCCESS'>('SCAN');
   const [amount, setAmount] = useState<string>('');
   const [roundUp, setRoundUp] = useState(false);
   const [selectedRail, setSelectedRail] = useState<string>('mpesa');
+  
+  // Use passed merchant or fallback to mock
+  const activeMerchant = initialMerchant || MOCK_SCANNED_MERCHANT;
   
   // FX Simulation
   const EXCHANGE_RATE = 129.50; // USD to KES
@@ -50,12 +54,17 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
 
   useEffect(() => {
     if (isOpen) {
-      setStep('SCAN');
+      // If we have an initial merchant, skip scanning
+      if (initialMerchant) {
+        setStep('AMOUNT');
+      } else {
+        setStep('SCAN');
+      }
       setAmount('');
       setRoundUp(false);
       setSelectedRail('mpesa');
     }
-  }, [isOpen]);
+  }, [isOpen, initialMerchant]);
 
   const handleScanSimulate = () => {
     // Simulate QR code detection delay
@@ -73,7 +82,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
 
   const handleClose = () => {
     if (step === 'SUCCESS') {
-      onSuccess(totalPay, MOCK_SCANNED_MERCHANT);
+      onSuccess(totalPay, activeMerchant);
     }
     onClose();
   };
@@ -138,15 +147,15 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
             <div className="space-y-6 animate-fade-in pb-4">
               {/* Merchant Card */}
               <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                <img src={MOCK_SCANNED_MERCHANT.imageUrl} alt="Merchant" className="w-12 h-12 rounded-full object-cover" />
+                <img src={activeMerchant.imageUrl} alt="Merchant" className="w-12 h-12 rounded-full object-cover" />
                 <div className="flex-1">
                   <h3 className="font-bold text-gray-900 flex items-center gap-1">
-                    {MOCK_SCANNED_MERCHANT.name}
-                    {MOCK_SCANNED_MERCHANT.isVerified && <ShieldCheck className="w-4 h-4 text-trust-500" fill="currentColor" />}
+                    {activeMerchant.name}
+                    {activeMerchant.isVerified && <ShieldCheck className="w-4 h-4 text-trust-500" fill="currentColor" />}
                   </h3>
                   <div className="flex items-center gap-2">
-                    <p className="text-xs text-gray-500">{MOCK_SCANNED_MERCHANT.location}</p>
-                    {MOCK_SCANNED_MERCHANT.isEco && (
+                    <p className="text-xs text-gray-500">{activeMerchant.location}</p>
+                    {activeMerchant.isEco && (
                       <span className="flex items-center gap-0.5 text-[10px] text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full font-medium">
                         <Leaf className="w-3 h-3" /> Eco
                       </span>
@@ -156,10 +165,10 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
               </div>
 
               {/* Cultural Tip */}
-              {MOCK_SCANNED_MERCHANT.culturalTip && (
+              {activeMerchant.culturalTip && (
                 <div className="flex gap-3 bg-blue-50 p-3 rounded-xl border border-blue-100">
                    <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                   <p className="text-xs text-blue-800 leading-relaxed">{MOCK_SCANNED_MERCHANT.culturalTip}</p>
+                   <p className="text-xs text-blue-800 leading-relaxed">{activeMerchant.culturalTip}</p>
                 </div>
               )}
 
