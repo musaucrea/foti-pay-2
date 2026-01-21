@@ -19,11 +19,11 @@ import {
   Plus
 } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, XAxis, Tooltip } from 'recharts';
-import { AppTab, Merchant } from './types';
-import { PaymentModal } from './components/PaymentModal';
-import { AiTravelGuide } from './components/AiTravelGuide';
-import { OnboardingFlow } from './components/OnboardingFlow';
-import { ExploreMap } from './components/ExploreMap';
+import { AppTab, Merchant } from './types.ts';
+import { PaymentModal } from './components/PaymentModal.tsx';
+import { AiTravelGuide } from './components/AiTravelGuide.tsx';
+import { OnboardingFlow } from './components/OnboardingFlow.tsx';
+import { ExploreMap } from './components/ExploreMap.tsx';
 
 // Mock Data
 const RECENT_TRANSACTIONS = [

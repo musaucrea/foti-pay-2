@@ -1,9 +1,10 @@
 import { GoogleGenAI } from "@google/genai";
 
 const getClient = () => {
-  const apiKey = process.env.API_KEY;
+  // Use a fallback for environments where process might not be defined globally
+  const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : undefined;
   if (!apiKey) {
-    throw new Error("API_KEY is not defined");
+    throw new Error("API_KEY is not defined. Please ensure it is set in your environment.");
   }
   return new GoogleGenAI({ apiKey });
 };

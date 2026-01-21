@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, ShieldCheck, CheckCircle2, RefreshCw, Smartphone, CreditCard, ScanLine, Leaf, Info, WifiOff, CloudOff, Globe, Wallet as WalletIcon, Loader2, Database, Zap } from 'lucide-react';
-import { Merchant } from '../types';
-import { initiateMpesaStkPush, checkTransactionStatus } from '../services/paymentService';
+import { Merchant } from '../types.ts';
+import { initiateMpesaStkPush, checkTransactionStatus } from '../services/paymentService.ts';
 
 interface PaymentModalProps {
   isOpen: boolean;

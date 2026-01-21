@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Search, Filter, MapPin, Navigation, Star, ShieldCheck, Leaf, ArrowRight, Car, Bike, CheckCircle2, MessageSquare } from 'lucide-react';
-import { Merchant } from '../types';
+import { Merchant } from '../types.ts';
 
 interface ExploreMapProps {
   onClose: () => void;

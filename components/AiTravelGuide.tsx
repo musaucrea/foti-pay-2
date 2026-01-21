@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, MapPin, Sparkles, User, Bot } from 'lucide-react';
-import { getTravelAdvice } from '../services/geminiService';
+import { getTravelAdvice } from '../services/geminiService.ts';
 
 export const AiTravelGuide: React.FC = () => {
   const [messages, setMessages] = useState<{role: 'user' | 'bot', text: string}[]>([
