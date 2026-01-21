@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { X, ShieldCheck, CheckCircle2, RefreshCw, Smartphone, CreditCard, ScanLine, Leaf, Info, WifiOff, CloudOff, Globe, Wallet as WalletIcon } from 'lucide-react';
+import { X, ShieldCheck, CheckCircle2, RefreshCw, Smartphone, CreditCard, ScanLine, Leaf, Info, WifiOff, CloudOff, Globe, Wallet as WalletIcon, Loader2, Database, Zap } from 'lucide-react';
 import { Merchant } from '../types';
+import { initiateMpesaStkPush, checkTransactionStatus } from '../services/paymentService';
 
 interface PaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (amount: number, merchant: Merchant) => void;
   isOffline: boolean;
-  initialMerchant?: Merchant | null; // New prop for direct payments
+  initialMerchant?: Merchant | null;
 }
 
-// Mock Merchant Data for the "Scan" result (Fallback)
 const MOCK_SCANNED_MERCHANT: Merchant = {
   id: 'm-123',
   name: "Mama Oliech's Fish Kitchen",
@@ -25,11 +25,9 @@ const MOCK_SCANNED_MERCHANT: Merchant = {
 };
 
 const PAYMENT_RAILS = [
-  { id: 'mpesa', name: 'M-Pesa', type: 'LOCAL', color: 'bg-green-600', textColor: 'text-white', sub: 'Safaricom' },
+  { id: 'mpesa', name: 'M-Pesa', type: 'LOCAL', color: 'bg-green-600', textColor: 'text-white', sub: 'Safaricom Daraja' },
   { id: 'airtel', name: 'Airtel Money', type: 'LOCAL', color: 'bg-red-600', textColor: 'text-white', sub: 'Airtel' },
-  { id: 'telebirr', name: 'Telebirr', type: 'LOCAL', color: 'bg-blue-500', textColor: 'text-white', sub: 'Ethio Telecom' },
   { id: 'card', name: 'Visa / MC', type: 'GLOBAL', color: 'bg-indigo-900', textColor: 'text-white', sub: ' via Stripe' },
-  { id: 'apple', name: 'Apple Pay', type: 'GLOBAL', color: 'bg-black', textColor: 'text-white', sub: 'Wallet' },
 ];
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onSuccess, isOffline, initialMerchant }) => {
@@ -37,72 +35,65 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
   const [amount, setAmount] = useState<string>('');
   const [roundUp, setRoundUp] = useState(false);
   const [selectedRail, setSelectedRail] = useState<string>('mpesa');
+  const [isStkWaiting, setIsStkWaiting] = useState(false);
   
-  // Use passed merchant or fallback to mock
   const activeMerchant = initialMerchant || MOCK_SCANNED_MERCHANT;
-  
-  // FX Simulation
-  const EXCHANGE_RATE = 129.50; // USD to KES
-  
-  // Calculations
+  const EXCHANGE_RATE = 129.50;
   const rawAmount = parseFloat(amount) || 0;
   const roundUpCents = rawAmount > 0 ? (Math.ceil(rawAmount) - rawAmount) : 0;
   const finalRoundUp = roundUp ? roundUpCents : 0;
   const totalPay = rawAmount + finalRoundUp;
-  
   const localAmount = (rawAmount * EXCHANGE_RATE).toFixed(2);
 
   useEffect(() => {
     if (isOpen) {
-      // If we have an initial merchant, skip scanning
-      if (initialMerchant) {
-        setStep('AMOUNT');
-      } else {
-        setStep('SCAN');
-      }
+      setStep(initialMerchant ? 'AMOUNT' : 'SCAN');
       setAmount('');
       setRoundUp(false);
       setSelectedRail('mpesa');
+      setIsStkWaiting(false);
     }
   }, [isOpen, initialMerchant]);
 
-  const handleScanSimulate = () => {
-    // Simulate QR code detection delay
-    setTimeout(() => {
-      setStep('AMOUNT');
-    }, 1500);
-  };
-
-  const handlePay = () => {
+  const handlePay = async () => {
     setStep('PROCESSING');
-    setTimeout(() => {
-      setStep('SUCCESS');
-    }, 2500);
+    
+    if (selectedRail === 'mpesa' && !isOffline) {
+      setIsStkWaiting(true);
+      try {
+        const response = await initiateMpesaStkPush({
+          amount: parseFloat(localAmount),
+          phoneNumber: "254712345678", // In real app, get from user profile
+          merchantId: activeMerchant.id,
+          currency: 'KES'
+        });
+        
+        const status = await checkTransactionStatus(response.checkoutRequestId);
+        if (status === 'SUCCESS') {
+          setStep('SUCCESS');
+        }
+      } catch (error) {
+        console.error("Payment failed", error);
+        setStep('AMOUNT');
+      } finally {
+        setIsStkWaiting(false);
+      }
+    } else {
+      // Offline or non-Mpesa simulation
+      setTimeout(() => setStep('SUCCESS'), 2000);
+    }
   };
 
   const handleClose = () => {
-    if (step === 'SUCCESS') {
-      onSuccess(totalPay, activeMerchant);
-    }
+    if (step === 'SUCCESS') onSuccess(totalPay, activeMerchant);
     onClose();
-  };
-
-  const getProcessingMessage = () => {
-    if (isOffline) return "Queuing securely for sync...";
-    switch(selectedRail) {
-      case 'mpesa': return "Pushing request to M-Pesa...";
-      case 'airtel': return " contacting Airtel Money...";
-      case 'telebirr': return "Connecting to Telebirr...";
-      case 'apple': return "Confirming with Face ID...";
-      default: return "Processing Card Transaction...";
-    }
   };
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden min-h-[60vh] flex flex-col animate-slide-up">
+      <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden min-h-[70vh] flex flex-col animate-slide-up">
         
         {/* Header */}
         <div className="p-4 flex justify-between items-center border-b border-gray-100">
@@ -110,241 +101,252 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({ isOpen, onClose, onS
              {step === 'SCAN' ? 'Scan to Pay' : 'Secure Payment'}
              {step !== 'SCAN' && <ShieldCheck className="w-4 h-4 text-trust-500" />}
           </h2>
-          <button onClick={onClose} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200">
+          <button onClick={onClose} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
             <X className="w-5 h-5 text-gray-600" />
           </button>
         </div>
 
-        {/* Content Body */}
-        <div className="flex-1 flex flex-col p-6 relative overflow-y-auto no-scrollbar">
+        {/* Content */}
+        <div className="flex-1 flex flex-col overflow-y-auto no-scrollbar relative">
           
-          {/* STEP 1: SCANNER */}
-          {step === 'SCAN' && (
-            <div className="flex flex-col items-center justify-center h-full space-y-6">
-              <div className="relative w-64 h-64 bg-gray-900 rounded-3xl overflow-hidden shadow-inner border-4 border-safari-400 cursor-pointer group" onClick={handleScanSimulate}>
-                <img src="https://picsum.photos/600/600?grayscale" alt="Camera Feed" className="w-full h-full object-cover opacity-50" />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <ScanLine className="w-16 h-16 text-white animate-pulse" />
-                </div>
-                {isOffline && (
-                   <div className="absolute top-4 right-4 bg-orange-500 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 shadow-md">
-                     <WifiOff className="w-3 h-3" /> Offline Mode
-                   </div>
-                )}
-                <div className="absolute bottom-4 left-0 right-0 text-center text-white text-sm font-medium">
-                  Tap to simulate scan
-                </div>
+          {/* Offline Mode Indicator Banner */}
+          {isOffline && step === 'AMOUNT' && (
+            <div className="bg-amber-50 border-b border-amber-100 px-6 py-3 flex items-start gap-3 animate-fade-in">
+              <WifiOff className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-xs font-bold text-amber-800 uppercase tracking-wider">Offline Queue Enabled</p>
+                <p className="text-[11px] text-amber-700 leading-tight">Your transaction will be securely encrypted and synced automatically once a connection is restored.</p>
               </div>
-              <p className="text-gray-500 text-sm text-center">
-                Scan QR, Till Number, or Paybill.<br/>
-                <span className="text-xs text-gray-400">Works with M-Pesa, Airtel, & Visa</span>
-              </p>
             </div>
           )}
 
-          {/* STEP 2: AMOUNT & DETAILS */}
-          {step === 'AMOUNT' && (
-            <div className="space-y-6 animate-fade-in pb-4">
-              {/* Merchant Card */}
-              <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                <img src={activeMerchant.imageUrl} alt="Merchant" className="w-12 h-12 rounded-full object-cover" />
-                <div className="flex-1">
-                  <h3 className="font-bold text-gray-900 flex items-center gap-1">
-                    {activeMerchant.name}
-                    {activeMerchant.isVerified && <ShieldCheck className="w-4 h-4 text-trust-500" fill="currentColor" />}
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs text-gray-500">{activeMerchant.location}</p>
-                    {activeMerchant.isEco && (
-                      <span className="flex items-center gap-0.5 text-[10px] text-green-700 bg-green-100 px-1.5 py-0.5 rounded-full font-medium">
-                        <Leaf className="w-3 h-3" /> Eco
-                      </span>
-                    )}
+          <div className="p-6 space-y-6">
+            {step === 'SCAN' && (
+              <div className="flex flex-col items-center justify-center space-y-6 py-8">
+                <div className="relative w-64 h-64 bg-gray-900 rounded-3xl overflow-hidden shadow-inner border-4 border-safari-400 cursor-pointer" onClick={() => setStep('AMOUNT')}>
+                  <img src="https://picsum.photos/600/600?grayscale" className="w-full h-full object-cover opacity-50" alt="Camera Feed" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <ScanLine className="w-16 h-16 text-white animate-pulse" />
                   </div>
-                </div>
-              </div>
-
-              {/* Cultural Tip */}
-              {activeMerchant.culturalTip && (
-                <div className="flex gap-3 bg-blue-50 p-3 rounded-xl border border-blue-100">
-                   <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                   <p className="text-xs text-blue-800 leading-relaxed">{activeMerchant.culturalTip}</p>
-                </div>
-              )}
-
-              {/* Input */}
-              <div className="space-y-2">
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Enter Amount (USD)</label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-400">$</span>
-                  <input 
-                    type="number" 
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full pl-10 pr-4 py-4 text-3xl font-bold text-gray-900 bg-white border-2 border-gray-200 rounded-xl focus:border-safari-500 focus:ring-0 outline-none transition-colors"
-                    autoFocus
-                  />
-                </div>
-              </div>
-
-              {/* FX Widget */}
-              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="bg-gray-50 px-4 py-2 border-b border-gray-100 flex justify-between items-center">
-                    <span className="text-xs font-bold text-gray-500 uppercase">Payment Breakdown</span>
-                    <span className="text-[10px] text-trust-700 bg-trust-50 px-2 py-0.5 rounded-full border border-trust-100">Best Rate Guarantee</span>
-                </div>
-                <div className="p-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Merchant Gets (KES)</span>
-                    <span className="font-bold text-gray-900">{parseFloat(localAmount).toLocaleString()}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600 flex items-center gap-1">FX Rate <RefreshCw className="w-3 h-3 text-gray-400"/></span>
-                    <span className="font-mono text-gray-700">1 USD = {EXCHANGE_RATE} KES</span>
-                  </div>
-                  
-                  {/* Round Up */}
-                  {rawAmount > 0 && roundUpCents > 0 && (
-                    <div className="pt-2 mt-2 border-t border-gray-100">
-                      <label className="flex items-center justify-between cursor-pointer group">
-                         <div className="flex items-center gap-3">
-                           <div className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${roundUp ? 'bg-safari-500 border-safari-500' : 'border-gray-300'}`}>
-                              {roundUp && <div className="w-2 h-2 bg-white rounded-full" />}
-                           </div>
-                           <div>
-                             <p className="text-sm font-bold text-gray-800">Round up for Conservation</p>
-                             <p className="text-[10px] text-gray-500">Support local wildlife trust (+${roundUpCents.toFixed(2)})</p>
-                           </div>
-                         </div>
-                         <input type="checkbox" className="hidden" checked={roundUp} onChange={() => setRoundUp(!roundUp)} />
-                      </label>
+                  {isOffline && (
+                    <div className="absolute top-4 right-4 bg-amber-500 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 font-bold shadow-lg">
+                      <Database className="w-3 h-3" /> Offline Scan
                     </div>
                   )}
                 </div>
+                <div className="text-center">
+                   <p className="text-gray-900 font-bold">Point at QR Code</p>
+                   <p className="text-gray-500 text-sm">Works with all local merchant codes</p>
+                </div>
               </div>
+            )}
 
-              {/* Multi-Rail Selection */}
-              <div>
-                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 block">Select Payment Rail</label>
-                <div className="grid grid-cols-1 gap-2">
-                  {PAYMENT_RAILS.map((rail) => (
-                    <button
-                      key={rail.id}
-                      onClick={() => setSelectedRail(rail.id)}
-                      className={`flex items-center justify-between p-3 rounded-xl border transition-all ${
-                        selectedRail === rail.id 
-                          ? 'border-safari-500 bg-safari-50 shadow-sm' 
-                          : 'border-gray-100 bg-white hover:bg-gray-50'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${rail.color} ${rail.textColor}`}>
-                          {rail.name[0]}
-                        </div>
-                        <div className="text-left">
-                          <p className={`text-sm font-bold ${selectedRail === rail.id ? 'text-gray-900' : 'text-gray-700'}`}>{rail.name}</p>
-                          <p className="text-[10px] text-gray-500">{rail.sub}</p>
-                        </div>
+            {step === 'AMOUNT' && (
+              <div className="space-y-6 animate-fade-in">
+                {/* Enhanced Merchant Card */}
+                <div className="flex items-center gap-4 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                  <div className="relative">
+                    <img src={activeMerchant.imageUrl} className="w-14 h-14 rounded-xl object-cover border-2 border-white shadow-sm" alt={activeMerchant.name} />
+                    {isOffline && (
+                      <div className="absolute -bottom-1 -right-1 bg-green-500 text-white rounded-full p-0.5 shadow-sm border border-white" title="Details Verified Offline">
+                        <CheckCircle2 className="w-3 h-3" />
                       </div>
-                      <div className={`w-4 h-4 rounded-full border flex items-center justify-center ${selectedRail === rail.id ? 'border-safari-500 bg-safari-500' : 'border-gray-300'}`}>
-                         {selectedRail === rail.id && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
-                      </div>
-                    </button>
-                  ))}
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start">
+                      <h3 className="font-bold text-gray-900 leading-none">{activeMerchant.name}</h3>
+                      {isOffline && (
+                        <span className="text-[9px] font-bold text-green-700 bg-green-100 px-1.5 py-0.5 rounded uppercase tracking-tighter">Verified Offline</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">{activeMerchant.location}</p>
+                    <div className="flex gap-2 mt-2">
+                       <span className="flex items-center gap-0.5 text-[10px] bg-white border border-gray-200 px-1.5 py-0.5 rounded text-gray-600">
+                         <Zap className="w-2.5 h-2.5 text-safari-500" /> Instant Pay
+                       </span>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-[10px] text-gray-400 text-center mt-3">
-                   Powered by Flutterwave & Direct Integrations
-                </p>
-              </div>
-            </div>
-          )}
 
-          {/* STEP 3: PROCESSING */}
-          {step === 'PROCESSING' && (
-            <div className="flex flex-col items-center justify-center h-full space-y-4 text-center">
-              <div className="w-16 h-16 border-4 border-safari-100 border-t-safari-500 rounded-full animate-spin"></div>
-              <h3 className="text-lg font-bold text-gray-900">{getProcessingMessage()}</h3>
-              <p className="text-sm text-gray-500 max-w-[200px]">
-                {selectedRail === 'mpesa' ? 'Check your phone for the M-Pesa PIN prompt' : 'Securing transaction on the blockchain ledger'}
-              </p>
-            </div>
-          )}
+                {/* Amount Input */}
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Amount in USD</label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-gray-400">$</span>
+                    <input 
+                      type="number" 
+                      value={amount} 
+                      onChange={(e) => setAmount(e.target.value)} 
+                      placeholder="0.00"
+                      className="w-full pl-10 pr-4 py-5 text-4xl font-black text-gray-900 bg-white border-2 border-gray-100 rounded-2xl focus:border-safari-500 focus:ring-4 focus:ring-safari-500/10 outline-none transition-all" 
+                      autoFocus 
+                    />
+                  </div>
+                </div>
 
-          {/* STEP 4: SUCCESS */}
-          {step === 'SUCCESS' && (
-            <div className="flex flex-col items-center justify-center h-full space-y-6 animate-scale-up text-center">
-              <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-2 ${isOffline ? 'bg-orange-100' : 'bg-trust-50'}`}>
-                {isOffline ? <CloudOff className="w-10 h-10 text-orange-500" /> : <CheckCircle2 className="w-12 h-12 text-trust-500" />}
+                {/* Breakdown */}
+                <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                  <div className="p-4 space-y-3">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-500">Local Settlement (KES)</span>
+                      <span className="font-bold text-gray-900">{parseFloat(localAmount).toLocaleString()}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-500 flex items-center gap-1.5">
+                        Guaranteed Rate <Info className="w-3 h-3 text-gray-300" />
+                      </span>
+                      <span className="font-mono text-xs font-bold text-gray-700">1 USD = {EXCHANGE_RATE} KES</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rails */}
+                <div className="space-y-3">
+                  <label className="text-xs font-bold text-gray-400 uppercase tracking-widest">Select Rail</label>
+                  <div className="grid grid-cols-1 gap-2">
+                    {PAYMENT_RAILS.map((rail) => (
+                      <button 
+                        key={rail.id} 
+                        onClick={() => setSelectedRail(rail.id)} 
+                        className={`flex items-center justify-between p-4 rounded-2xl border transition-all ${
+                          selectedRail === rail.id 
+                            ? 'border-safari-500 bg-safari-50 shadow-sm' 
+                            : 'border-gray-100 bg-white hover:border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-bold ${rail.color} ${rail.textColor}`}>
+                            {rail.id === 'mpesa' ? <Smartphone className="w-5 h-5" /> : <CreditCard className="w-5 h-5" />}
+                          </div>
+                          <div className="text-left">
+                            <p className="font-bold text-gray-900">{rail.name}</p>
+                            <p className="text-[10px] text-gray-500 uppercase font-medium">{rail.sub}</p>
+                          </div>
+                        </div>
+                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${selectedRail === rail.id ? 'border-safari-500 bg-safari-500' : 'border-gray-200'}`}>
+                           {selectedRail === rail.id && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <div>
-                <h3 className="text-2xl font-bold text-gray-900">{isOffline ? 'Payment Queued' : 'Payment Complete'}</h3>
-                <p className="text-gray-500">{isOffline ? 'Will sync when online' : 'Receipt sent to email'}</p>
-              </div>
-              
-              <div className="bg-gray-50 w-full p-4 rounded-xl border border-dashed border-gray-300">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-500">Total Paid</span>
-                  <span className="font-bold">${totalPay.toFixed(2)}</span>
-                </div>
-                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-500">Method</span>
-                  <span className="font-bold flex items-center gap-1">
-                    {PAYMENT_RAILS.find(r => r.id === selectedRail)?.name} 
-                    <span className="text-[10px] bg-gray-200 px-1 rounded text-gray-600">
-                      {isOffline ? 'OFFLINE' : 'LIVE'}
-                    </span>
-                  </span>
-                </div>
-                 <div className="flex justify-between text-sm mb-2">
-                  <span className="text-gray-500">Merchant Rec'd</span>
-                  <span className="font-bold">KES {parseFloat(localAmount).toLocaleString()}</span>
-                </div>
-                {roundUp && (
-                   <div className="flex justify-between text-sm text-safari-700 bg-safari-50 p-2 rounded">
-                    <span>Wildlife Donation</span>
-                    <span className="font-bold">+${roundUpCents.toFixed(2)}</span>
+            )}
+
+            {step === 'PROCESSING' && (
+              <div className="flex flex-col items-center justify-center h-full min-h-[40vh] space-y-6 text-center">
+                {isStkWaiting ? (
+                  <div className="flex flex-col items-center animate-pulse">
+                    <div className="w-20 h-20 bg-safari-50 rounded-full flex items-center justify-center mb-6">
+                      <Smartphone className="w-10 h-10 text-safari-500" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900">Pushing STK Request</h3>
+                    <p className="text-sm text-gray-500 max-w-[220px] mx-auto mt-2">Check your phone to enter the M-Pesa PIN for {activeMerchant.name}</p>
+                    <div className="mt-8 flex gap-2">
+                      <div className="w-2.5 h-2.5 bg-safari-500 rounded-full animate-bounce"></div>
+                      <div className="w-2.5 h-2.5 bg-safari-500 rounded-full animate-bounce delay-100"></div>
+                      <div className="w-2.5 h-2.5 bg-safari-500 rounded-full animate-bounce delay-200"></div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center">
+                    <div className="relative">
+                       {isOffline ? (
+                         <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center mb-6 animate-pulse">
+                           <Database className="w-10 h-10 text-amber-500" />
+                         </div>
+                       ) : (
+                         <Loader2 className="w-16 h-16 text-safari-500 animate-spin mb-6" />
+                       )}
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-900">
+                      {isOffline ? 'Encrypting & Queuing' : 'Securing Transaction'}
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-2 max-w-[240px]">
+                      {isOffline 
+                        ? 'Creating a secure offline ledger entry on your device.' 
+                        : 'Settling with merchant bank via the travel grid.'}
+                    </p>
                   </div>
                 )}
               </div>
+            )}
 
-              <div className="bg-amber-100 p-4 rounded-xl w-full text-left">
-                <p className="text-xs font-bold text-amber-800 uppercase mb-1">Travel Memory</p>
-                <p className="text-sm text-amber-900">Would you like to attach a photo to this transaction?</p>
-                <div className="flex gap-2 mt-3">
-                   <button className="text-xs bg-white py-2 px-3 rounded shadow-sm font-medium hover:bg-amber-50">Add Photo</button>
-                   <button className="text-xs py-2 px-3 font-medium text-amber-800" onClick={handleClose}>Skip</button>
+            {step === 'SUCCESS' && (
+              <div className="flex flex-col items-center justify-center h-full min-h-[40vh] space-y-6 animate-scale-up text-center">
+                <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-2 shadow-inner border-4 border-white ${isOffline ? 'bg-amber-100' : 'bg-trust-50'}`}>
+                  {isOffline ? <CloudOff className="w-12 h-12 text-amber-500" /> : <CheckCircle2 className="w-12 h-12 text-trust-500" />}
                 </div>
+                <div>
+                  <h3 className="text-2xl font-black text-gray-900">
+                    {isOffline ? 'Payment Queued' : 'Payment Complete'}
+                  </h3>
+                  <p className="text-gray-500 font-medium">
+                    {isOffline ? 'Locked in local vault' : 'Settled successfully'}
+                  </p>
+                </div>
+
+                {isOffline && (
+                  <div className="bg-amber-50 px-4 py-2 rounded-full border border-amber-100 flex items-center gap-2">
+                     <RefreshCw className="w-3.5 h-3.5 text-amber-600 animate-spin-slow" />
+                     <span className="text-[11px] font-bold text-amber-700 uppercase tracking-tight">Syncing when online</span>
+                  </div>
+                )}
+
+                <div className="bg-gray-50 w-full p-5 rounded-2xl border border-dashed border-gray-200">
+                  <div className="flex justify-between items-center text-sm mb-3">
+                    <span className="text-gray-500 font-medium">Amount Paid</span>
+                    <span className="font-bold text-gray-900 text-lg">${totalPay.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between items-center text-sm pt-3 border-t border-gray-200/50">
+                    <span className="text-gray-500 font-medium">Local Reciept</span>
+                    <span className="font-mono text-xs font-bold text-gray-700">
+                      {isOffline ? 'OFFLINE_REF_831' : 'DAR_REF_X92J0P'}
+                    </span>
+                  </div>
+                </div>
+
+                {!isOffline && (
+                  <div className="flex items-center gap-2 text-trust-700 bg-trust-50 px-3 py-1.5 rounded-full text-xs font-bold">
+                    <ShieldCheck className="w-3.5 h-3.5" /> Blockchain Secured
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Footer Actions */}
-        {step === 'AMOUNT' && (
-          <div className="p-4 border-t border-gray-100">
+        {(step === 'AMOUNT' || step === 'SUCCESS') && (
+          <div className="p-6 border-t border-gray-100 bg-gray-50/50">
             <button 
-              onClick={handlePay}
-              disabled={!amount}
-              className="w-full py-4 bg-safari-500 hover:bg-safari-600 text-white font-bold rounded-xl shadow-lg shadow-safari-500/30 transition-all disabled:opacity-50 disabled:shadow-none"
+              onClick={step === 'AMOUNT' ? handlePay : handleClose} 
+              disabled={step === 'AMOUNT' && !amount} 
+              className={`w-full py-4 font-bold rounded-2xl shadow-xl transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2 ${
+                step === 'AMOUNT' 
+                  ? 'bg-safari-500 text-white shadow-safari-500/20 hover:bg-safari-600' 
+                  : 'bg-gray-900 text-white shadow-gray-900/20'
+              }`}
             >
-              Pay ${totalPay.toFixed(2)}
+              {step === 'AMOUNT' ? (
+                <>Pay ${totalPay.toFixed(2)} {isOffline && <Database className="w-4 h-4 ml-1" />}</>
+              ) : (
+                'Close Receipt'
+              )}
             </button>
           </div>
         )}
-        
-        {step === 'SUCCESS' && (
-           <div className="p-4 border-t border-gray-100">
-            <button 
-              onClick={handleClose}
-              className="w-full py-4 bg-gray-900 text-white font-bold rounded-xl"
-            >
-              Done
-            </button>
-          </div>
-        )}
-
       </div>
+      <style>{`
+        @keyframes spin-slow {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin-slow {
+          animation: spin-slow 3s linear infinite;
+        }
+      `}</style>
     </div>
   );
 };
